@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gorilla/mux"
 	"gorm.io/gorm"
 )
 
@@ -23,19 +22,6 @@ func handleDBQueryError(w http.ResponseWriter, err error, message string, status
 		return true
 	}
 	return false
-}
-
-func handleEncodingError(w http.ResponseWriter, err error) bool {
-	if err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-		log.Printf("Encoding error: %v", err)
-		return true
-	}
-	return false
-}
-
-func handleDataNotFound(w http.ResponseWriter) {
-	http.Error(w, "Data not found", http.StatusNotFound)
 }
 
 // LoggerMiddleware logs details about each HTTP request
@@ -97,15 +83,20 @@ func fetchAndRespond(w http.ResponseWriter, fetchFunc func() error, data interfa
 	}
 }
 
-func GetAllServices(w http.ResponseWriter, r *http.Request) {
+func GetServices(w http.ResponseWriter, r *http.Request) {
 	db := GetDBInstance()
 	var services []Service
+	var service Service
+
 	// Get pagination and sorting parameters from query string
 	queryParams := r.URL.Query()
 	page := queryParams.Get("page")
 	limit := queryParams.Get("limit")
 	sortBy := queryParams.Get("sort_by")
 	order := queryParams.Get("order")
+	searchFlag := queryParams.Get("search_mode")
+	name := queryParams.Get("name")
+	id := queryParams.Get("id")
 
 	// Set default values if parameters are not provided
 	if page == "" {
@@ -123,13 +114,11 @@ func GetAllServices(w http.ResponseWriter, r *http.Request) {
 
 	// Convert parameters to integers
 	pageInt, err := strconv.Atoi(page)
-	if err != nil {
-		http.Error(w, "Invalid page parameter", http.StatusBadRequest)
+	if handleDBQueryError(w, err, "Invalid page parameter", http.StatusBadRequest) {
 		return
 	}
 	limitInt, err := strconv.Atoi(limit)
-	if err != nil {
-		http.Error(w, "Invalid limit parameter", http.StatusBadRequest)
+	if handleDBQueryError(w, err, "Invalid limit parameter", http.StatusBadRequest) {
 		return
 	}
 
@@ -153,28 +142,42 @@ func GetAllServices(w http.ResponseWriter, r *http.Request) {
 	// Calculate offset
 	offset := (pageInt - 1) * limitInt
 
-	// Fetch paginated and sorted results
-	fetchAndRespond(w, func() error {
-		return db.Offset(offset).Limit(limitInt).Order(sortBy + " " + order).Find(&services).Error
-	}, &services)
+	// Fetch data based on search criteria
+	switch {
+	case id != "":
+		// Get service by ID
+		fetchAndRespond(w, func() error { return db.First(&service, "id = ?", id).Error }, &service)
+	case searchFlag == "true" && name != "":
+		// Perform a search by name
+		fetchAndRespond(w, func() error {
+			return db.Where("service_name LIKE ?", "%"+name+"%").Order(sortBy + " " + order).Limit(limitInt).Find(&services).Error
+		}, &services)
+	case name != "":
+		// Get a single service by name
+		fetchAndRespond(w, func() error { return db.First(&service, "service_name = ?", name).Error }, &service)
+	default:
+		// Fetch paginated and sorted results
+		fetchAndRespond(w, func() error {
+			return db.Offset(offset).Limit(limitInt).Order(sortBy + " " + order).Find(&services).Error
+		}, &services)
+	}
 }
 
-func GetServiceById(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	db := GetDBInstance()
-	var service Service
-	fetchAndRespond(w, func() error { return db.First(&service, "id = ?", params["id"]).Error }, &service)
-}
-
-func GetAllUsers(w http.ResponseWriter, r *http.Request) {
+func GetUsers(w http.ResponseWriter, r *http.Request) {
 	db := GetDBInstance()
 	var users []User
-	fetchAndRespond(w, func() error { return db.Find(&users).Error }, &users)
-}
-
-func GetUserById(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	db := GetDBInstance()
 	var user User
-	fetchAndRespond(w, func() error { return db.First(&user, "id = ?", params["id"]).Error }, &user)
+
+	// Get query parameters
+	queryParams := r.URL.Query()
+	username := queryParams.Get("username")
+
+	// Fetch data based on query parameters
+	if username != "" {
+		// Get user by username
+		fetchAndRespond(w, func() error { return db.First(&user, "user_name = ?", username).Error }, &user)
+	} else {
+		// Get all users
+		fetchAndRespond(w, func() error { return db.Find(&users).Error }, &users)
+	}
 }
