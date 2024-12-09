@@ -26,10 +26,10 @@ func main() {
 	router.HandleFunc("/v1/users", GetAllUsers).Methods("GET")
 	router.HandleFunc("/v1/users/{id}", GetUserById).Methods("GET")
 
-	// mount the router on the server
-	http.Handle("/", router)
+	// Wrap the mux with LoggerMiddleware
+	loggedMux := LoggerMiddleware(router)
 
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(":8080", loggedMux); err != nil {
 		fmt.Println("Error starting server:", err)
 	}
 	log.Println("Starting server on :8080")
