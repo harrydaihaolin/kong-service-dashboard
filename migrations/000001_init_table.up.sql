@@ -1,3 +1,4 @@
+-- Note: This was managed by GORM auto migration, but it is included here for reference.
 CREATE TABLE IF NOT EXISTS services (
     id SERIAL PRIMARY KEY,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

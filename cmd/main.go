@@ -21,10 +21,8 @@ func main() {
 	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("ok")
 	})
-	router.HandleFunc("/v1/services", GetAllServices).Methods("GET")
-	router.HandleFunc("/v1/services/{id}", GetServiceById).Methods("GET")
-	router.HandleFunc("/v1/users", GetAllUsers).Methods("GET")
-	router.HandleFunc("/v1/users/{id}", GetUserById).Methods("GET")
+	router.HandleFunc("/v1/services", GetServices).Methods("GET")
+	router.HandleFunc("/v1/users", GetUsers).Methods("GET")
 
 	// Wrap the mux with LoggerMiddleware
 	loggedMux := LoggerMiddleware(router)
