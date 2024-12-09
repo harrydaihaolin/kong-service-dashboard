@@ -20,12 +20,10 @@ docker build -t test-server . && docker run -it -d -p 8080:8080 test-server:late
 go run ./cmd
 ```
 
+
 # How to test
 test with test reports
 ```
 ./scripts/test_report.sh
 ```
 It generates coverage files
-```
-open 
-```
