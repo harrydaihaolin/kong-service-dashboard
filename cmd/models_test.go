@@ -129,25 +129,3 @@ func TestUser_Update(t *testing.T) {
 	assert.NoError(t, result.Error)
 	assert.Equal(t, "Updated", user.UserProfile.FirstName)
 }
-
-func TestMain(m *testing.M) {
-	db := setupDB(nil)
-	if db == nil {
-		panic("failed to connect database")
-	}
-
-	// Run tests
-	code := m.Run()
-
-	// Cleanup
-	cleanup(db)
-
-	os.Exit(code)
-}
-
-func cleanup(db *gorm.DB) {
-	db.Exec("DELETE FROM service_versions WHERE service_version_name LIKE 'v1.0%'")
-	db.Exec("DELETE FROM services WHERE service_name LIKE 'Test Service%'")
-	db.Exec("DELETE FROM user_profiles WHERE email LIKE 'testuser@example.com'")
-	db.Exec("DELETE FROM users WHERE username LIKE 'testuser_%'")
-}

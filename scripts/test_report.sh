@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Setup environment variables
+export SERVICE_DASHBOARD_DB_PORT=5432
+export SERVICE_DASHBOARD_DB_USER=postgres
+export SERVICE_DASHBOARD_DB_PASSWORD=example
+export SERVICE_DASHBOARD_DB_NAME=postgres
+export SERVICE_DASHBOARD_DB_HOST=localhost
+
 # Set variables for filenames
 COVERAGE_DIR="coverage"
 COVERAGE_PROFILE="$COVERAGE_DIR/coverage.out"
