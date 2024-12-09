@@ -1,39 +1,36 @@
-# Start with the official Go image for ARM64 architecture
+# Build Stage
 FROM golang:1.23.4-bullseye AS builder
 
-# Set the working directory inside the container
 WORKDIR /app
 
-# Copy go.mod and go.sum files
 COPY go.mod go.sum ./
-
-# Download and cache Go modules
 RUN go mod download
 
-# Copy the rest of the application source code
 COPY . .
 
-# Set environment variables for Go
 ENV GOOS=linux \
     GOARCH=arm64
 
-# Build the Go application
-RUN go build -o app ./cmd
+RUN go build -ldflags "-s -w" -o app ./cmd
 
-# Start a new minimal image for runtime
+# Runtime Stage
 FROM cgr.dev/chainguard/wolfi-base
 
-# Set the working directory inside the runtime container
 WORKDIR /app
 
-# Copy the built binary from the builder stage
 COPY --from=builder /app/app .
+COPY --from=builder /app/migrations ./migrations
 
-# Expose the port your application uses
+RUN apk add --no-cache curl \
+    && chmod +x ./app \
+    && addgroup --system appgroup \
+    && adduser --system --ingroup appgroup appuser
+
+USER appuser
+
 EXPOSE 8080
 
-# Grant execution permissions to the app binary
-RUN chmod +x ./app
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD curl --fail http://localhost:8080/health || exit 1
 
-# Set the entrypoint command
-# CMD ["./app"]
+ENTRYPOINT ["./app"]

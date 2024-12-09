@@ -1,10 +1,18 @@
 # kong-service-dashboard
   Thought about project description for a second Services &amp; Users API in Go This repository provides a sample Go (Golang) application that implements a basic HTTP API for managing and retrieving users and services.
 
-# How to test with docker compose (WIP)
-This starts up the database only, still working on the server
+# Start Dependencies using docker compose
+```sh
+docker-compose down -v
+```
+Starting up the service and DB
 ```sh
 docker-compose up -d
+```
+
+# Start containerized application
+```sh
+docker build -t test-server . && docker run -it test-server:latest
 ```
 
 # How to run in local environment only
@@ -12,11 +20,3 @@ docker-compose up -d
 go run ./cmd
 ```
 
-# How to test this project without docker compose
-```sh
-docker build -t test-server . && docker run -it test-server:latest
-```
-Run `./app` to start the server
-```sh
-./app
-```

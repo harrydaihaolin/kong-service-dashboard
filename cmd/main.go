@@ -7,20 +7,18 @@ import (
 	"os"
 
 	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-
-	"gorm.io/driver/postgres"
+	gormPostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Hello, World!")
 }
 
-func initDB() (*gorm.DB, error) {
-	// Get all DB connection variables from the environment
-	migrationsPath := "./migrations" // Path to your migrations folder
+func getGormDB() (*gorm.DB, error) {
 	dbHost := os.Getenv("SERVICE_DASHBOARD_DB_HOST")
 	if dbHost == "" {
 		dbHost = "host.docker.internal"
@@ -42,37 +40,57 @@ func initDB() (*gorm.DB, error) {
 		dbName = "postgres"
 	}
 
-	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", dbHost, dbPort, dbUser, dbPassword, dbName)
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		dbHost, dbPort, dbUser, dbPassword, dbName)
+	db, err := gorm.Open(gormPostgres.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect database: %w", err)
+		return nil, err
 	}
 
-	// CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";
-	if err := db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";").Error; err != nil {
-		return nil, fmt.Errorf("error creating extension: %w", err)
-	}
+	return db, nil
+}
 
-	if err := db.AutoMigrate(&User{}, &Service{}, &ServiceVersion{}, &UserRole{}, &UserProfile{}); err != nil {
-		return nil, fmt.Errorf("error during migration: %w", err)
-	}
-
-	// Inject DummyData
-	dummyData := &DummyData{}
-	dummyData.Generate(db)
-
-	// Run migrations
-	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", dbUser, dbPassword, dbHost, dbPort, dbName)
-	m, err := migrate.New("file://"+migrationsPath, dbURL)
+func initDB() (*gorm.DB, error) {
+	db, err := getGormDB()
 	if err != nil {
-		log.Fatalf("Failed to create migrate instance: %v\n", err)
+		log.Fatal(err)
 	}
 
-	// Run all available migrations up
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		log.Fatalf("Failed to run migrations: %v\n", err)
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	driver, err := postgres.WithInstance(sqlDB, &postgres.Config{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Auto migrate the schema
+	db.AutoMigrate(&Service{}, &ServiceVersion{}, &User{}, &UserProfile{})
+
+	// Run migrations from the migrations folder
+	migrationsPath := "file://./migrations" // Path to your migrations folder
+	m, err := migrate.NewWithDatabaseInstance(
+		migrationsPath,
+		"postgres", driver,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange && err != migrate.ErrNilVersion {
+		log.Fatal(err)
+	}
+
+	// Inject DummyData only if the table is empty
+	if err := db.First(&Service{}).Error; err != nil {
+		GenerateDummyData(db)
 	} else {
-		log.Println("Migrations ran successfully")
+		log.Println("Service table already has data, skipping dummy data injection")
 	}
 
 	return db, nil
