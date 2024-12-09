@@ -12,16 +12,23 @@ import (
 	gormPostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+
+	"github.com/gorilla/mux"
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Hello, World!")
 }
 
-func getGormDB() (*gorm.DB, error) {
+func getDsn() string {
 	dbHost := os.Getenv("SERVICE_DASHBOARD_DB_HOST")
 	if dbHost == "" {
-		dbHost = "host.docker.internal"
+		if os.Getenv("UNIT_TEST") == "True" {
+			dbHost = "localhost"
+		} else {
+			log.Println("Warning: SERVICE_DASHBOARD_DB_HOST is not set. Using default value 'host.docker.internal'.")
+			dbHost = "host.docker.internal"
+		}
 	}
 	dbPort := os.Getenv("SERVICE_DASHBOARD_DB_PORT")
 	if dbPort == "" {
@@ -42,7 +49,12 @@ func getGormDB() (*gorm.DB, error) {
 
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		dbHost, dbPort, dbUser, dbPassword, dbName)
-	db, err := gorm.Open(gormPostgres.Open(dsn), &gorm.Config{
+
+	return dsn
+}
+
+func getGormDB() (*gorm.DB, error) {
+	db, err := gorm.Open(gormPostgres.Open(getDsn()), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 
@@ -87,11 +99,7 @@ func initDB() (*gorm.DB, error) {
 	}
 
 	// Inject DummyData only if the table is empty
-	if err := db.First(&Service{}).Error; err != nil {
-		GenerateDummyData(db)
-	} else {
-		log.Println("Service table already has data, skipping dummy data injection")
-	}
+	GenerateDummyData(db)
 
 	return db, nil
 }
@@ -103,9 +111,21 @@ func main() {
 		panic("failed to initialize database")
 	}
 
-	http.HandleFunc("/", handler)
-	fmt.Println("Starting server on :8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		fmt.Println("Error starting server:", err)
 	}
+
+	router := mux.NewRouter()
+	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "ok")
+	})
+	router.HandleFunc("/v1/services", GetAllServices).Methods("GET")
+	router.HandleFunc("/v1/services/{id}", GetServiceById).Methods("GET")
+	router.HandleFunc("/v1/users", GetAllUsers).Methods("GET")
+	router.HandleFunc("/v1/users/{id}", GetUserById).Methods("GET")
+
+	// mount the router on the server
+	http.Handle("/", router)
+
+	fmt.Println("Starting server on :8080")
 }

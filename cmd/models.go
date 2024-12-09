@@ -16,7 +16,7 @@ type ServiceVersion struct {
 	gorm.Model
 
 	ServiceID                 uint   `gorm:"not null" json:"service_id"`
-	ServiceVersionName        string `gorm:"unique" json:"service_version_name"`
+	ServiceVersionName        string `gorm:"not null" json:"service_version_name"`
 	ServiceVersionURL         string `gorm:"type:text" json:"service_version_url"`
 	ServiceVersionDescription string `gorm:"type:text" json:"service_version_description"`
 }
@@ -31,8 +31,7 @@ type User struct {
 type UserProfile struct {
 	gorm.Model
 
-	UserID    uint   `gorm:"not null;unique" json:"user_id"`
+	UserID    uint   `gorm:"not null" json:"user_id"`
 	FirstName string `gorm:"type:varchar(255)" json:"first_name"`
 	LastName  string `gorm:"type:varchar(255)" json:"last_name"`
-	Email     string `gorm:"unique;not null" json:"email"`
-}
+	Email     string `gorm:"not null" json:"email"`
