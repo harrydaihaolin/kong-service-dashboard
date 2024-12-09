@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  golang-backend:
+    image: golang:latest
+    container_name: golang-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      - SERVICE_DASHBOARD_DB_HOST=host.docker.internal
+      - SERVICE_DASHBOARD_DB_PORT=5432
+      - SERVICE_DASHBOARD_DB_USER=postgres
+      - SERVICE_DASHBOARD_DB_PASSWORD=example
+      - SERVICE_DASHBOARD_DB_NAME=postgres
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+
+  db:
+    image: postgres:latest
+    container_name: postgres-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: example
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+
+volumes:
+  postgres-data:
