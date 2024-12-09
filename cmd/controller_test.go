@@ -26,6 +26,33 @@ func TestGetAllServices(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), name)
 	}
 }
+
+func TestGetAllServicesWithPagination(t *testing.T) {
+	req, err := http.NewRequest("GET", "/services?page=1&limit=1", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(GetAllServices)
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Service 1")
+	assert.NotContains(t, rr.Body.String(), "Service 2")
+}
+
+func TestGetAllServicesWithPaginationSecondPage(t *testing.T) {
+	req, err := http.NewRequest("GET", "/services?page=2&limit=1", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(GetAllServices)
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.NotContains(t, rr.Body.String(), "Service 1")
+	assert.Contains(t, rr.Body.String(), "Service 2")
+}
+
 func TestGetAllUsers(t *testing.T) {
 	req, err := http.NewRequest("GET", "/users", nil)
 	assert.NoError(t, err)
@@ -41,6 +68,7 @@ func TestGetAllUsers(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), name)
 	}
 }
+
 func TestGetServiceByIdNotFound(t *testing.T) {
 	req, err := http.NewRequest("GET", "/services/3", nil)
 	assert.NoError(t, err)

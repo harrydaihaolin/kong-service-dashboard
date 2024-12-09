@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"gorm.io/gorm"
@@ -79,7 +80,38 @@ func fetchAndRespond(w http.ResponseWriter, fetchFunc func() error, data interfa
 func GetAllServices(w http.ResponseWriter, r *http.Request) {
 	db := GetDBInstance()
 	var services []Service
-	fetchAndRespond(w, func() error { return db.Find(&services).Error }, &services)
+	// Get pagination parameters from query string
+	queryParams := r.URL.Query()
+	page := queryParams.Get("page")
+	limit := queryParams.Get("limit")
+
+	// Set default values if parameters are not provided
+	if page == "" {
+		page = "1"
+	}
+	if limit == "" {
+		limit = "10"
+	}
+
+	// Convert parameters to integers
+	pageInt, err := strconv.Atoi(page)
+	if err != nil {
+		http.Error(w, "Invalid page parameter", http.StatusBadRequest)
+		return
+	}
+	limitInt, err := strconv.Atoi(limit)
+	if err != nil {
+		http.Error(w, "Invalid limit parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Calculate offset
+	offset := (pageInt - 1) * limitInt
+
+	// Fetch paginated results
+	fetchAndRespond(w, func() error {
+		return db.Offset(offset).Limit(limitInt).Find(&services).Error
+	}, &services)
 }
 
 func GetServiceById(w http.ResponseWriter, r *http.Request) {
