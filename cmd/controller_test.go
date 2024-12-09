@@ -53,6 +53,41 @@ func TestGetAllServicesWithPaginationSecondPage(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "Service 2")
 }
 
+func TestGetAllServicesWithSorting(t *testing.T) {
+	req, err := http.NewRequest("GET", "/services?sortBy=service_name&order=desc", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(GetAllServices)
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Service 2")
+	assert.Contains(t, rr.Body.String(), "Service 1")
+}
+
+func TestGetAllServicesWithInvalidSorting(t *testing.T) {
+	req, err := http.NewRequest("GET", "/services?sort_by=invalid&order=desc", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(GetAllServices)
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestGetAllServicesWithInvalidOrder(t *testing.T) {
+	req, err := http.NewRequest("GET", "/services?sort_by=service_name&order=invalid", nil)
+	assert.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(GetAllServices)
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
 func TestGetAllUsers(t *testing.T) {
 	req, err := http.NewRequest("GET", "/users", nil)
 	assert.NoError(t, err)
@@ -70,7 +105,7 @@ func TestGetAllUsers(t *testing.T) {
 }
 
 func TestGetServiceByIdNotFound(t *testing.T) {
-	req, err := http.NewRequest("GET", "/services/3", nil)
+	req, err := http.NewRequest("GET", "/services/10000", nil)
 	assert.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -82,7 +117,7 @@ func TestGetServiceByIdNotFound(t *testing.T) {
 }
 
 func TestGetUserByIdNotFound(t *testing.T) {
-	req, err := http.NewRequest("GET", "/users/3", nil)
+	req, err := http.NewRequest("GET", "/users/10000", nil)
 	assert.NoError(t, err)
 
 	rr := httptest.NewRecorder()

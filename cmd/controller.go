@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 	"gorm.io/gorm"
@@ -35,6 +36,25 @@ func handleEncodingError(w http.ResponseWriter, err error) bool {
 
 func handleDataNotFound(w http.ResponseWriter) {
 	http.Error(w, "Data not found", http.StatusNotFound)
+}
+
+// LoggerMiddleware logs details about each HTTP request
+func LoggerMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Capture the start time
+		startTime := time.Now()
+
+		// Combine the query params into a single URL
+		urlWithParams := r.URL.Path + "?" + r.URL.RawQuery
+		log.Printf("[Requests] %s %s", r.Method, urlWithParams)
+
+		// Call the next handler in the chain
+		next.ServeHTTP(w, r)
+
+		// Log the duration
+		duration := time.Since(startTime)
+		log.Printf("Completed in %v", duration)
+	})
 }
 
 // fetchAndRespond is a helper function that handles fetching data and responding to an HTTP request.
@@ -80,10 +100,12 @@ func fetchAndRespond(w http.ResponseWriter, fetchFunc func() error, data interfa
 func GetAllServices(w http.ResponseWriter, r *http.Request) {
 	db := GetDBInstance()
 	var services []Service
-	// Get pagination parameters from query string
+	// Get pagination and sorting parameters from query string
 	queryParams := r.URL.Query()
 	page := queryParams.Get("page")
 	limit := queryParams.Get("limit")
+	sortBy := queryParams.Get("sort_by")
+	order := queryParams.Get("order")
 
 	// Set default values if parameters are not provided
 	if page == "" {
@@ -91,6 +113,12 @@ func GetAllServices(w http.ResponseWriter, r *http.Request) {
 	}
 	if limit == "" {
 		limit = "10"
+	}
+	if sortBy == "" {
+		sortBy = "id"
+	}
+	if order == "" {
+		order = "asc"
 	}
 
 	// Convert parameters to integers
@@ -105,12 +133,29 @@ func GetAllServices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate sorting parameters
+	validSortBy := map[string]bool{"id": true, "service_name": true, "created_at": true}
+	validOrder := map[string]bool{"asc": true, "desc": true}
+
+	if sortBy != "" && !validSortBy[sortBy] {
+		http.Error(w, "Invalid sort_by parameter", http.StatusBadRequest)
+		return
+	}
+	if order != "" && !validOrder[order] {
+		http.Error(w, "Invalid order parameter", http.StatusBadRequest)
+		return
+	}
+	if (sortBy == "" && order != "") || (sortBy != "" && order == "") {
+		http.Error(w, "Both sort_by and order parameters must be provided together", http.StatusBadRequest)
+		return
+	}
+
 	// Calculate offset
 	offset := (pageInt - 1) * limitInt
 
-	// Fetch paginated results
+	// Fetch paginated and sorted results
 	fetchAndRespond(w, func() error {
-		return db.Offset(offset).Limit(limitInt).Find(&services).Error
+		return db.Offset(offset).Limit(limitInt).Order(sortBy + " " + order).Find(&services).Error
 	}, &services)
 }
 
