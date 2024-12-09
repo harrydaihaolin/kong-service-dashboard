@@ -26,3 +26,5 @@ go.work.sum
 
 # coverage files
 coverage.*
+coverage_summary
+coverage/
