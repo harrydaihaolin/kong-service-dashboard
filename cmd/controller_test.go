@@ -20,6 +20,7 @@ func TestGetHandlers(t *testing.T) {
 		body       string
 	}{
 		{"TestGetAllServices", "GET", "/services", GetServices, http.StatusOK, "Service 1"},
+		{"TestGetAllServicesWithServiceVersion", "GET", "/services?load_version=true", GetServices, http.StatusOK, "Service 1 Version 1"},
 		{"TestGetAllServicesWithPagination", "GET", "/services?page=1&limit=1", GetServices, http.StatusOK, "Service 1"},
 		{"TestGetAllServicesWithPaginationSecondPage", "GET", "/services?page=2&limit=1", GetServices, http.StatusOK, "Service 2"},
 		{"TestGetAllServicesWithSorting", "GET", "/services?sortBy=service_name&order=desc", GetServices, http.StatusOK, "Service 2"},
@@ -64,6 +65,15 @@ func TestServiceMutateHandlers(t *testing.T) {
 	var serviceForUpdate Service
 	db.Where("service_name = ?", "ServiceForUpdate").First(&serviceForUpdate)
 
+	// Seed database for service version delete operation
+	db.Create(&ServiceVersion{ServiceID: serviceForUpdate.ID, ServiceVersionName: "Service 1 Version 1", ServiceVersionURL: "http://service1.com", ServiceVersionDescription: "Service 1 Version 1 Description"})
+
+	// fetch the service version id for delete operation and update operation
+	var serviceVersionForDeletion ServiceVersion
+	db.Where("service_version_name = ?", "Service 1 Version 1").First(&serviceVersionForDeletion)
+	var serviceVersionForUpdate ServiceVersion
+	db.Where("service_version_name = ?", "Service 1 Version 1").First(&serviceVersionForUpdate)
+
 	tests := []struct {
 		name       string
 		method     string
@@ -83,6 +93,14 @@ func TestServiceMutateHandlers(t *testing.T) {
 		{"TestDeleteService", "DELETE", "/services?id=" + fmt.Sprint(serviceForDeletion.ID), DeleteService, http.StatusOK, "", ""},
 		{"TestDeleteServiceByName", "DELETE", "/services?name=ServiceForDeletion2", DeleteService, http.StatusOK, "", ""},
 		{"TestDeleteServiceNotFound", "DELETE", "/services?id=10000", DeleteService, http.StatusNotFound, "Resource not found", ""},
+		{"TestCreateServiceVersion", "POST", "/service_versions", CreateServiceVersion, http.StatusCreated, "Service 1 Version 2", `{"service_id": ` + fmt.Sprint(serviceForUpdate.ID) + `, "service_version_name": "Service 1 Version 2", "service_version_url": "http://service1.com", "service_version_description": "Service 1 Version 2 Description"}`},
+		{"TestCreateServiceVersionInvalidJsonPayload", "POST", "/service_versions", CreateServiceVersion, http.StatusBadRequest, "Invalid JSON payload", "invalid json"},
+		{"TestCreateServiceVersionServiceNotFound", "POST", "/service_versions", CreateServiceVersion, http.StatusNotFound, "Service not found", `{"service_id": 10000, "service_version_name": "Service 1 Version 2", "service_version_url": "http://service1.com", "service_version_description": "Service 1 Version 2 Description"}`},
+		{"TestUpdateServiceVersion", "PUT", "/service_versions", UpdateServiceVersion, http.StatusOK, "Service 1 Version 1", `{"id": ` + fmt.Sprint(serviceVersionForUpdate.ID) + `, "service_id": ` + fmt.Sprint(serviceForUpdate.ID) + `, "service_version_name": "Service 1 Version 1"}`},
+		{"TestUpdateServiceVersionNotFound", "PUT", "/service_versions", UpdateServiceVersion, http.StatusNotFound, "Version not found", `{"id": 10000, "service_version_name": "Non-existent Service Version"}`},
+		{"TestUpdateServiceVersionInvalidJsonPayload", "PUT", "/service_versions", UpdateServiceVersion, http.StatusBadRequest, "Invalid JSON payload", "invalid json"},
+		{"TestDeleteServiceVersion", "DELETE", "/service_versions?id=" + fmt.Sprint(serviceVersionForDeletion.ID), DeleteServiceVersion, http.StatusOK, "", ""},
+		{"TestDeleteServiceVersionNotFound", "DELETE", "/service_versions?id=10000", DeleteServiceVersion, http.StatusNotFound, "Resource not found", ""},
 	}
 
 	for _, tt := range tests {

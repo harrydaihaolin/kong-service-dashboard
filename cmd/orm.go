@@ -26,14 +26,14 @@ type User struct {
 
 	Username    string      `gorm:"unique;not null" json:"username"`
 	Password    string      `gorm:"not null" json:"password"`
-	UserProfile UserProfile `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"user_profile,omitempty"`
+	UserProfile UserProfile `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"user_profile,omitempty"`
 	Role        string      `gorm:"not null" json:"role"`
 }
 
 type UserProfile struct {
 	gorm.Model
 
-	UserID    uint   `gorm:"not null" json:"user_id"`
+	UserID    uint   `gorm:"unique;not null" json:"user_id"`
 	FirstName string `gorm:"type:varchar(255)" json:"first_name"`
 	LastName  string `gorm:"type:varchar(255)" json:"last_name"`
 	Email     string `gorm:"not null" json:"email"`

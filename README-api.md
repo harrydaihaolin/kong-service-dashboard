@@ -9,6 +9,9 @@ This document provides examples of how to interact with the API endpoints for us
 - [Create Users](#example-create-users)
 - [Update Users](#example-update-users)
 - [Delete Users](#example-delete-users)
+- [Create Service Versions](#example-create-service-versions)
+- [Update Service Versions](#example-update-service-versions)
+- [Delete Service Versions](#example-delete-service-versions)
 
 ## Example: User Authentication
 
@@ -20,15 +23,6 @@ The `RoleBasedMiddleware` checks for a valid JWT token with the required role. I
 ### Example Usage
 1. First of all, fetch the JWT token by calling /v1/auth endpoint with the credentials (see above examples)
 2. JWT token contains the role information inferred by the user identity information
-
-### Request Payload
-
-```json
-{
-    "username": "exampleUser",
-    "password": "examplePassword"
-}
-```
 
 ### Example Request
 ```sh
@@ -101,21 +95,6 @@ curl -X GET "http://localhost:8080/v1/users?username=example"
 
 Here is an example of how to create a new user using the `POST /v1/users` endpoint:
 
-### Request Payload
-
-```json
-{
-    "username": "newUser",
-    "password": "newPassword",
-    "role": "user",
-    "user_profile": {
-        "first_name": "New",
-        "last_name": "User",
-        "email": "newUser@example.com"
-    }
-}
-```
-
 ### Example Request
 
 ```sh
@@ -148,21 +127,6 @@ curl -X POST "http://localhost:8080/v1/users" \
 
 ## Example: Update Users
 Here is an example of how to update an existing user using the `PUT /v1/users/{id}` endpoint:
-
-### Request Payload
-
-```json
-{
-    "username": "updatedUser",
-    "password": "updatedPassword",
-    "role": "admin",
-    "user_profile": {
-        "first_name": "Updated",
-        "last_name": "User",
-        "email": "updatedUser@example.com"
-    }
-}
-```
 
 ### Example Request
 
@@ -219,3 +183,88 @@ curl -X DELETE "http://localhost:8080/v1/users/3" \
 ```
 
 If the user ID does not exist, the response will include an appropriate HTTP error status.
+
+## Example: Create Service Versions
+
+Here is an example of how to create a new service version using the `POST /v1/service_versions` endpoint:
+
+### Example Request
+
+```sh
+curl -X POST "http://localhost:8080/v1/service_versions" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer <your_jwt_token>" \
+    -d '{
+        "service_id": 1,
+        "service_version_name": "v1.0.0",
+        "service_version_description": "Initial release",
+        "service_version_url": "http://example.com/v1.0.0"
+    }'
+```
+
+### Example Response
+
+```json
+{
+  "ID": 1,
+  "ServiceID": 1,
+  "ServiceVersionName": "v1.0.0",
+  "ServiceVersionDescription": "Initial release",
+  "ServiceVersionURL": "http://example.com/v1.0.0",
+  "CreatedAt": "2024-12-10T08:37:22.798819462Z",
+  "UpdatedAt": "2024-12-10T08:37:22.798819462Z"
+}
+```
+
+## Example: Update Service Versions
+
+Here is an example of how to update an existing service version using the `PUT /v1/service_versions` endpoint:
+
+### Example Request
+
+```sh
+curl -X PUT "http://localhost:8080/v1/service_versions" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer <your_jwt_token>" \
+    -d '{
+        "id": 1,
+        "service_version_name": "v1.0.1",
+        "service_version_description": "Bug fixes",
+        "service_version_url": "http://example.com/v1.0.1"
+    }'
+```
+
+### Example Response
+
+```json
+{
+  "ID": 1,
+  "ServiceID": 1,
+  "ServiceVersionName": "v1.0.1",
+  "ServiceVersionDescription": "Bug fixes",
+  "ServiceVersionURL": "http://example.com/v1.0.1",
+  "CreatedAt": "2024-12-10T08:37:22.798819462Z",
+  "UpdatedAt": "2024-12-11T09:45:22.798819462Z"
+}
+```
+
+## Example: Delete Service Versions
+
+Here is an example of how to delete an existing service version using the `DELETE /v1/service_versions` endpoint:
+
+### Example Request
+
+```sh
+curl -X DELETE "http://localhost:8080/v1/service_versions/{id}" \
+    -H "Authorization: Bearer <your_jwt_token>"
+```
+
+### Example Response
+
+```json
+{
+  "message": "Service version deleted successfully"
+}
+```
+
+If the service version ID does not exist, the response will include an appropriate HTTP error status.
