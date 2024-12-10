@@ -25,7 +25,9 @@ type User struct {
 	gorm.Model
 
 	Username    string      `gorm:"unique;not null" json:"username"`
+	Password    string      `gorm:"not null" json:"password"`
 	UserProfile UserProfile `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"user_profile,omitempty"`
+	Role        string      `gorm:"not null" json:"role"`
 }
 
 type UserProfile struct {
