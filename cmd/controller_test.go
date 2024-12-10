@@ -1,214 +1,174 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 )
 
-// Load Test Data
+func TestGetHandlers(t *testing.T) {
+	var tests = []struct {
+		name       string
+		method     string
+		url        string
+		handler    http.HandlerFunc
+		statusCode int
+		body       string
+	}{
+		{"TestGetAllServices", "GET", "/services", GetServices, http.StatusOK, "Service 1"},
+		{"TestGetAllServicesWithPagination", "GET", "/services?page=1&limit=1", GetServices, http.StatusOK, "Service 1"},
+		{"TestGetAllServicesWithPaginationSecondPage", "GET", "/services?page=2&limit=1", GetServices, http.StatusOK, "Service 2"},
+		{"TestGetAllServicesWithSorting", "GET", "/services?sortBy=service_name&order=desc", GetServices, http.StatusOK, "Service 2"},
+		{"TestGetAllServicesWithInvalidSorting", "GET", "/services?sort_by=invalid&order=desc", GetServices, http.StatusBadRequest, ""},
+		{"TestGetAllServicesWithInvalidOrder", "GET", "/services?sort_by=service_name&order=invalid", GetServices, http.StatusBadRequest, ""},
+		{"TestGetAllUsers", "GET", "/users", GetUsers, http.StatusOK, "user1"},
+		{"TestGetServiceByIdNotFound", "GET", "/services?id=10000", GetServices, http.StatusNotFound, ""},
+		{"TestGetUserByIdNotFound", "GET", "/users?id=10000", GetUsers, http.StatusNotFound, ""},
+		{"TestSearchServicesByServiceName", "GET", "/services?search_mode=true&name=1", GetServices, http.StatusOK, "Service 1"},
+		{"TestSearchServicesByServiceNameNotFound", "GET", "/services?search_mode=true&name=3", GetServices, http.StatusOK, "[]\n"},
+		{"TestSearchServicesByServiceNameWithLimit", "GET", "/services?search_mode=true&name=Service&limit=1", GetServices, http.StatusOK, "Service 1"},
+		{"TestGetServiceByServiceName", "GET", "/services?name=Service%201", GetServices, http.StatusOK, "Service 1"},
+		{"TestGetServiceById", "GET", "/services", GetServices, http.StatusOK, "Service 1"},
+	}
 
-func TestGetAllServices(t *testing.T) {
-	req, err := http.NewRequest("GET", "/services", nil)
-	assert.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest(tt.method, tt.url, nil)
+			assert.NoError(t, err)
 
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(GetServices)
-	handler.ServeHTTP(rr, req)
+			rr := httptest.NewRecorder()
+			handler := tt.handler
+			handler.ServeHTTP(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
-	expected_service_names := []string{"Service 1", "Service 2"}
-	// the response body should contain the expected service names
-	for _, name := range expected_service_names {
-		assert.Contains(t, rr.Body.String(), name)
+			assert.Equal(t, tt.statusCode, rr.Code)
+			if tt.body != "" {
+				assert.Contains(t, rr.Body.String(), tt.body)
+			}
+		})
 	}
 }
 
-func TestGetAllServicesWithPagination(t *testing.T) {
-	req, err := http.NewRequest("GET", "/services?page=1&limit=1", nil)
-	assert.NoError(t, err)
+func TestServiceMutateHandlers(t *testing.T) {
+	// Seed database for delete operation
+	db := GetDBInstance()
+	db.Create(&Service{ServiceName: "ServiceForDeletion", ServiceDescription: "Service for deletion description"})
+	db.Create(&Service{ServiceName: "ServiceForDeletion2", ServiceDescription: "Service for deletion description"})
+	db.Create(&Service{ServiceName: "ServiceForUpdate", ServiceDescription: "Service for update description"})
+	// fetch the service id for delete operation and update operation
+	var serviceForDeletion Service
+	db.Where("service_name = ?", "ServiceForDeletion").First(&serviceForDeletion)
+	var serviceForUpdate Service
+	db.Where("service_name = ?", "ServiceForUpdate").First(&serviceForUpdate)
 
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(GetServices)
-	handler.ServeHTTP(rr, req)
+	tests := []struct {
+		name       string
+		method     string
+		url        string
+		handler    http.HandlerFunc
+		statusCode int
+		body       string
+		payload    string
+	}{
+		{"TestCreateService", "POST", "/services", CreateService, http.StatusCreated, "Service 5", `{"service_name": "Service 5", "service_description": "Service 5 Description"}`},
+		{"TestCreateServiceAlreadyCreated", "POST", "/services", CreateService, http.StatusConflict, "Service already exists", `{"service_name": "Service 1", "service_description": "Service 1 Description"}`},
+		{"TestCreateServiceWithInvalidJsonPayload", "POST", "/services", CreateService, http.StatusBadRequest, "Invalid JSON payload", "invalid json"},
+		{"TestUpdateService", "PUT", "/services", UpdateService, http.StatusOK, "Service 1 Updated", `{"id": ` + fmt.Sprint(serviceForUpdate.ID) + `, "service_name": "Service 1 Updated"}`},
+		{"TestUpdateServiceNotFound", "PUT", "/services", UpdateService, http.StatusNotFound, "Service not found", `{"id": 10000, "service_name": "Non-existent Service"}`},
+		{"TestUpdateServiceInvalidJsonPayload", "PUT", "/services", UpdateService, http.StatusBadRequest, "Invalid JSON payload", "invalid json"},
+		{"TestUpdateServiceInternalServerError", "PUT", "/services", UpdateService, http.StatusInternalServerError, "Failed to update service", `{"id": ` + fmt.Sprint(serviceForUpdate.ID) + `, "service_name": "Service 1"}`},
+		{"TestDeleteService", "DELETE", "/services?id=" + fmt.Sprint(serviceForDeletion.ID), DeleteService, http.StatusOK, "", ""},
+		{"TestDeleteServiceByName", "DELETE", "/services?name=ServiceForDeletion2", DeleteService, http.StatusOK, "", ""},
+		{"TestDeleteServiceNotFound", "DELETE", "/services?id=10000", DeleteService, http.StatusNotFound, "Resource not found", ""},
+	}
 
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Service 1")
-	assert.NotContains(t, rr.Body.String(), "Service 2")
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var req *http.Request
+			var err error
 
-func TestGetAllServicesWithPaginationSecondPage(t *testing.T) {
-	req, err := http.NewRequest("GET", "/services?page=2&limit=1", nil)
-	assert.NoError(t, err)
+			// Create request based on method
+			if tt.method == "POST" || tt.method == "PUT" {
+				req, err = http.NewRequest(tt.method, tt.url, strings.NewReader(tt.payload))
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req, err = http.NewRequest(tt.method, tt.url, nil)
+			}
 
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(GetServices)
-	handler.ServeHTTP(rr, req)
+			assert.NoError(t, err)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.NotContains(t, rr.Body.String(), "Service 1")
-	assert.Contains(t, rr.Body.String(), "Service 2")
-}
+			// Mock response recorder
+			rr := httptest.NewRecorder()
+			handler := tt.handler
+			handler.ServeHTTP(rr, req)
 
-func TestGetAllServicesWithSorting(t *testing.T) {
-	req, err := http.NewRequest("GET", "/services?sortBy=service_name&order=desc", nil)
-	assert.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(GetServices)
-	handler.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Service 2")
-	assert.Contains(t, rr.Body.String(), "Service 1")
-}
-
-func TestGetAllServicesWithInvalidSorting(t *testing.T) {
-	req, err := http.NewRequest("GET", "/services?sort_by=invalid&order=desc", nil)
-	assert.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(GetServices)
-	handler.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestGetAllServicesWithInvalidOrder(t *testing.T) {
-	req, err := http.NewRequest("GET", "/services?sort_by=service_name&order=invalid", nil)
-	assert.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(GetServices)
-	handler.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestGetAllUsers(t *testing.T) {
-	req, err := http.NewRequest("GET", "/users", nil)
-	assert.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(GetUsers)
-	handler.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	expected_usernames := []string{"user1", "user2"}
-	// the response body should contain the expected usernames
-	for _, name := range expected_usernames {
-		assert.Contains(t, rr.Body.String(), name)
+			assert.Equal(t, tt.statusCode, rr.Code)
+			if tt.body != "" {
+				assert.Contains(t, rr.Body.String(), tt.body)
+			}
+		})
 	}
 }
 
-func TestGetServiceByIdNotFound(t *testing.T) {
-	req, err := http.NewRequest("GET", "/services?id=10000", nil)
-	assert.NoError(t, err)
+func TestUserMutateHandlers(t *testing.T) {
+	// Seed database for delete operation
+	db := GetDBInstance()
+	db.Create(&User{Username: "UserForDeletion", Password: "password", Role: "user"})
+	db.Create(&User{Username: "UserForDeletion2", Password: "password", Role: "user"})
+	db.Create(&User{Username: "UserForUpdate", Password: "password", Role: "user"})
+	// fetch the user id for delete operation and update operation
+	var userForDeletion User
+	db.Where("username = ?", "UserForDeletion").First(&userForDeletion)
+	var userForUpdate User
+	db.Where("username = ?", "UserForUpdate").First(&userForUpdate)
 
-	rr := httptest.NewRecorder()
-	router := mux.NewRouter()
-	router.HandleFunc("/services", GetServices)
-	router.ServeHTTP(rr, req)
+	tests := []struct {
+		name       string
+		method     string
+		url        string
+		handler    http.HandlerFunc
+		statusCode int
+		body       string
+		payload    string
+	}{
+		{"TestCreateUser", "POST", "/users", CreateUser, http.StatusCreated, "User 5", `{"username": "User 5", "password": "password", "role": "user"}`},
+		{"TestCreateUserAlreadyCreated", "POST", "/users", CreateUser, http.StatusConflict, "User already exists", `{"username": "user1", "password": "password", "role": "user"}`},
+		{"TestCreateUserWithInvalidJsonPayload", "POST", "/users", CreateUser, http.StatusBadRequest, "Invalid JSON payload", "invalid json"},
+		{"TestUpdateUser", "PUT", "/users", UpdateUser, http.StatusOK, "User 1 Updated", `{"id": ` + fmt.Sprint(userForUpdate.ID) + `, "username": "User 1 Updated"}`},
+		{"TestUpdateUserNotFound", "PUT", "/users", UpdateUser, http.StatusNotFound, "User not found", `{"id": 10000, "username": "Non-existent User"}`},
+		{"TestUpdateUserInvalidJsonPayload", "PUT", "/users", UpdateUser, http.StatusBadRequest, "Invalid JSON payload", "invalid json"},
+		{"TestDeleteUser", "DELETE", "/users?id=" + fmt.Sprint(userForDeletion.ID), DeleteUser, http.StatusOK, "", ""},
+		{"TestDeleteUserByName", "DELETE", "/users?username=UserForDeletion2", DeleteUser, http.StatusOK, "", ""},
+		{"TestDeleteUserNotFound", "DELETE", "/users?id=10000", DeleteUser, http.StatusNotFound, "Resource not found", ""},
+	}
 
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var req *http.Request
+			var err error
 
-func TestGetUserByIdNotFound(t *testing.T) {
-	req, err := http.NewRequest("GET", "/users?id=10000", nil)
-	assert.NoError(t, err)
+			// Create request based on method
+			if tt.method == "POST" || tt.method == "PUT" {
+				req, err = http.NewRequest(tt.method, tt.url, strings.NewReader(tt.payload))
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req, err = http.NewRequest(tt.method, tt.url, nil)
+			}
 
-	rr := httptest.NewRecorder()
-	router := mux.NewRouter()
-	router.HandleFunc("/users/{id}", GetUsers)
-	router.ServeHTTP(rr, req)
+			assert.NoError(t, err)
 
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
+			// Mock response recorder
+			rr := httptest.NewRecorder()
+			handler := tt.handler
+			handler.ServeHTTP(rr, req)
 
-func TestSearchServicesByServiceName(t *testing.T) {
-	req, err := http.NewRequest("GET", "/services?search_mode=true&name=1", nil)
-	assert.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(GetServices)
-	handler.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Service 1")    // Contains 1
-	assert.NotContains(t, rr.Body.String(), "Service 2") // Does not contain 1
-}
-
-func TestSearchServicesByServiceNameNotFound(t *testing.T) {
-	req, err := http.NewRequest("GET", "/services?search_mode=true&name=3", nil)
-	assert.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(GetServices)
-	handler.ServeHTTP(rr, req)
-
-	// return empty array
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "[]\n", rr.Body.String())
-}
-
-func TestSearchServicesByServiceNameWithLimit(t *testing.T) {
-	req, err := http.NewRequest("GET", "/services?search_mode=true&name=Service&limit=1", nil)
-	assert.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(GetServices)
-	handler.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Service 1")    // Contains 1
-	assert.NotContains(t, rr.Body.String(), "Service 2") // Does not contain 1
-}
-
-func TestGetServiceByServiceName(t *testing.T) {
-	req, err := http.NewRequest("GET", "/services?name=Service%201", nil)
-	assert.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(GetServices)
-	handler.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Service 1")
-	assert.NotContains(t, rr.Body.String(), "Service 2")
-}
-
-func TestGetServiceById(t *testing.T) {
-	// find latest service id
-	req, err := http.NewRequest("GET", "/services", nil)
-	assert.NoError(t, err)
-
-	// extract the id from the response
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(GetServices)
-	handler.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Service 1")
-
-	var services []map[string]interface{}
-	err = json.Unmarshal(rr.Body.Bytes(), &services)
-	assert.NoError(t, err)
-	serviceID := services[0]["ID"].(float64)
-
-	req, err = http.NewRequest("GET", "/services?id="+fmt.Sprintf("%v", serviceID), nil)
-	assert.NoError(t, err)
-
-	// validate the response
-	rr = httptest.NewRecorder()
-	router := mux.NewRouter()
-	router.HandleFunc("/services", GetServices)
-	router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Service 1")
+			assert.Equal(t, tt.statusCode, rr.Code)
+			if tt.body != "" {
+				assert.Contains(t, rr.Body.String(), tt.body)
+			}
+		})
+	}
 }

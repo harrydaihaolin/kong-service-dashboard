@@ -25,7 +25,10 @@ var Permissions = map[string]map[string]bool{
 		"DELETE": true,
 	},
 	"user": {
-		"GET": true,
+		"GET":    true,
+		"POST":   false,
+		"PUT":    false,
+		"DELETE": false,
 	},
 }
 var whitelistedPaths = []string{"/v1/auth"}

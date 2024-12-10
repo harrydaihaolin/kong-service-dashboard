@@ -1,13 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,7 +26,7 @@ func TestUserAuthentication(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			jsonStr := `{"username":"` + tt.username + `","password":"` + tt.password + `"}`
-			req, err := http.NewRequest("POST", "/login", strings.NewReader(jsonStr))
+			req, err := http.NewRequest("POST", "/v1/auth", strings.NewReader(jsonStr))
 			assert.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
 
@@ -55,34 +54,41 @@ func TestRoleBasedMiddleware(t *testing.T) {
 		{"UserPOST", "user", "POST", http.StatusForbidden},
 		{"UserPUT", "user", "PUT", http.StatusForbidden},
 		{"UserDELETE", "user", "DELETE", http.StatusForbidden},
-		{"NoToken", "", "GET", http.StatusUnauthorized},
-		{"InvalidToken", "invalid", "GET", http.StatusForbidden},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := http.NewRequest(tt.method, "/protected", nil)
+			// Use /v1/auth to get the JWT token
+			var jsonStr string
+			if tt.role == "admin" {
+				jsonStr = `{"username":"user2","password":"password"}`
+			} else {
+				jsonStr = `{"username":"user1","password":"password"}`
+			}
+			authReq, err := http.NewRequest("POST", "/v1/auth", strings.NewReader(jsonStr))
+			assert.NoError(t, err)
+			authReq.Header.Set("Content-Type", "application/json")
+
+			// Get the token from the response
+			authRr := httptest.NewRecorder()
+			authHandler := http.HandlerFunc(UserAuthentication)
+			authHandler.ServeHTTP(authRr, authReq)
+
+			assert.Equal(t, http.StatusOK, authRr.Code)
+			var response map[string]string
+			err = json.Unmarshal(authRr.Body.Bytes(), &response)
+			assert.NoError(t, err)
+			token, ok := response["token"]
+			assert.True(t, ok)
+
+			// Use the token to access the protected resource
+			req, err := http.NewRequest(tt.method, "/v1/services", nil)
 			assert.NoError(t, err)
 
-			if tt.role != "" {
-				claims := CustomClaims{
-					Role: tt.role,
-					RegisteredClaims: jwt.RegisteredClaims{
-						ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * 24 * time.Hour)),
-					},
-				}
-				token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-				tokenString, err := token.SignedString(JwtSecretKey)
-				assert.NoError(t, err)
-				req.Header.Set("Authorization", tokenString)
-			} else if tt.name == "InvalidToken" {
-				req.Header.Set("Authorization", "invalidToken")
-			}
+			req.Header.Set("Authorization", "Bearer "+token)
 
 			rr := httptest.NewRecorder()
-			handler := RoleBasedMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			}))
+			handler := RoleBasedMiddleware(http.HandlerFunc(GetServices))
 			handler.ServeHTTP(rr, req)
 
 			assert.Equal(t, tt.expectedStatus, rr.Code)

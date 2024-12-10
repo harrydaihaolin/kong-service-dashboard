@@ -22,7 +22,13 @@ func main() {
 		log.Println("ok")
 	})
 	router.HandleFunc("/v1/services", GetServices).Methods("GET")
+	router.HandleFunc("/v1/services", CreateService).Methods("POST")
+	router.HandleFunc("/v1/services", UpdateService).Methods("PUT")
+	router.HandleFunc("/v1/services", DeleteService).Methods("DELETE")
 	router.HandleFunc("/v1/users", GetUsers).Methods("GET")
+	router.HandleFunc("/v1/users", CreateUser).Methods("POST")
+	router.HandleFunc("/v1/users", UpdateUser).Methods("PUT")
+	router.HandleFunc("/v1/users", DeleteUser).Methods("DELETE")
 	router.HandleFunc("/v1/auth", UserAuthentication).Methods("POST")
 
 	// Add logger middleware to the router

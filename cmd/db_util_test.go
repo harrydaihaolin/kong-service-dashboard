@@ -5,12 +5,15 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func TestGenerateDummyData(t *testing.T) {
 	// Create a PostgreSQL database connection for testing
 	dsn := getDsn()
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		t.Fatalf("failed to connect database: %v", err)
 	}
