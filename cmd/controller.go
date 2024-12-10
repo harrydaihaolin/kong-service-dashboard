@@ -97,6 +97,7 @@ func GetServices(w http.ResponseWriter, r *http.Request) {
 	searchFlag := queryParams.Get("search_mode")
 	name := queryParams.Get("name")
 	id := queryParams.Get("id")
+	loadVersion := queryParams.Get("load_version")
 
 	// Set default values if parameters are not provided
 	if page == "" {
@@ -146,19 +147,39 @@ func GetServices(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case id != "":
 		// Get service by ID
-		fetchAndRespond(w, func() error { return db.First(&service, "id = ?", id).Error }, &service)
+		fetchAndRespond(w, func() error {
+			query := db.First(&service, "id = ?", id)
+			if loadVersion == "true" {
+				query = query.Preload("Versions")
+			}
+			return query.Error
+		}, &service)
 	case searchFlag == "true" && name != "":
 		// Perform a search by name
 		fetchAndRespond(w, func() error {
-			return db.Where("service_name LIKE ?", "%"+name+"%").Order(sortBy + " " + order).Limit(limitInt).Find(&services).Error
+			query := db.Where("service_name LIKE ?", "%"+name+"%").Order(sortBy + " " + order).Limit(limitInt)
+			if loadVersion == "true" {
+				query = query.Preload("Versions")
+			}
+			return query.Find(&services).Error
 		}, &services)
 	case name != "":
 		// Get a single service by name
-		fetchAndRespond(w, func() error { return db.First(&service, "service_name = ?", name).Error }, &service)
+		fetchAndRespond(w, func() error {
+			query := db.First(&service, "service_name = ?", name)
+			if loadVersion == "true" {
+				query = query.Preload("Versions")
+			}
+			return query.Error
+		}, &service)
 	default:
 		// Fetch paginated and sorted results
 		fetchAndRespond(w, func() error {
-			return db.Offset(offset).Limit(limitInt).Order(sortBy + " " + order).Find(&services).Error
+			query := db.Offset(offset).Limit(limitInt).Order(sortBy + " " + order)
+			if loadVersion == "true" {
+				query = query.Preload("Versions")
+			}
+			return query.Find(&services).Error
 		}, &services)
 	}
 }
@@ -194,6 +215,122 @@ func UpdateService(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(service)
+}
+
+func CreateServiceVersion(w http.ResponseWriter, r *http.Request) {
+	db := GetDBInstance()
+
+	var version ServiceVersion
+	if err := json.NewDecoder(r.Body).Decode(&version); err != nil {
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	// Validate that ServiceID is provided
+	if version.ServiceID == 0 {
+		http.Error(w, "ServiceID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the service exists
+	var service Service
+	if err := db.First(&service, version.ServiceID).Error; err != nil {
+		http.Error(w, "Service not found", http.StatusNotFound)
+		return
+	}
+
+	// Check if the version already exists
+	var existingVersion ServiceVersion
+	if err := db.Where("service_version_name = ? AND service_id = ?", version.ServiceVersionName, version.ServiceID).First(&existingVersion).Error; err == nil {
+		http.Error(w, "Version already exists", http.StatusConflict)
+		return
+	}
+
+	// Create the new version
+	if err := db.Create(&version).Error; err != nil {
+		http.Error(w, "Failed to create version", http.StatusInternalServerError)
+		log.Printf("Error creating version: %v", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(version)
+}
+
+func UpdateServiceVersion(w http.ResponseWriter, r *http.Request) {
+	db := GetDBInstance()
+
+	var version ServiceVersion
+	if err := json.NewDecoder(r.Body).Decode(&version); err != nil {
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	// Ensure ID is provided
+	if version.ID == 0 {
+		http.Error(w, "ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the version exists
+	var existingVersion ServiceVersion
+	if err := db.First(&existingVersion, version.ID).Error; err != nil {
+		http.Error(w, "Version not found", http.StatusNotFound)
+		return
+	}
+
+	// Update the version
+	existingVersion.ServiceVersionName = version.ServiceVersionName
+	existingVersion.ServiceVersionDescription = version.ServiceVersionDescription
+	existingVersion.ServiceVersionURL = version.ServiceVersionURL
+
+	if err := db.Save(&existingVersion).Error; err != nil {
+		http.Error(w, "Failed to update version", http.StatusInternalServerError)
+		log.Printf("Error updating version: %v", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(existingVersion)
+}
+
+func DeleteServiceVersion(w http.ResponseWriter, r *http.Request) {
+	db := GetDBInstance()
+
+	// Parse query parameters
+	id := r.URL.Query().Get("id")
+
+	// Convert ID to integer if provided
+	var idInt uint
+	if id != "" {
+		parsedID, err := strconv.ParseUint(id, 10, 32)
+		idInt = uint(parsedID)
+		if err != nil {
+			http.Error(w, "Invalid ID parameter", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Check if the version exists by ID
+	var version ServiceVersion
+	if id != "" {
+		if err := db.First(&version, idInt).Error; err != nil {
+			http.Error(w, "Resource not found", http.StatusNotFound)
+			return
+		}
+	} else {
+		http.Error(w, "ID parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	// Perform delete
+	if err := db.Delete(&version).Error; err != nil {
+		http.Error(w, "Failed to delete version", http.StatusInternalServerError)
+		log.Printf("Error deleting version: %v", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // CreateService creates a new service in the database based on the provided JSON payload.
