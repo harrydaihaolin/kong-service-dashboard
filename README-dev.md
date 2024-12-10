@@ -32,13 +32,6 @@ To view coverage reports
 open ./coverage/coverage.html
 ```
 
-## How to run E2E Integration Test
-
-To run integration tests
-```sh
-./scripts/e2e_tests.sh
-```
-
 ## How to migrate
 
 Ensure the `migrate` binary is installed:
