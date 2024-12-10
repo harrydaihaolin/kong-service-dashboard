@@ -23,11 +23,16 @@ To run the application locally without containerization, use:
 go run ./cmd
 ```
 
-## How to Test
+## How to run unit tests
 
 To run tests and generate coverage reports, execute:
 ```sh
 ./scripts/test_report.sh
+```
+
+To view coverage reports
+```sh
+open ./coverage/coverage.html
 ```
 
 ## How to run E2E Integration Test
@@ -36,6 +41,17 @@ To run integration tests
 ```sh
 ./scripts/e2e_tests.sh
 ```
+
+## How to migrate
+Make sure `migrate` go binary is installed properly
+```sh
+migrate create -ext sql -dir ./migrations -seq create_users
+```
+Two SQL files are generated under `/migrations`. It is recommended to first test the SQL plan to ensure it works as expected. 
+
+Then, use GORM in `./cmd/orm.go` to redefine the schema. 
+
+Remove the migration file to verify if GORM matches the SQL plan. This provides an additional reference to ensure the database table is generated correctly.
 
 ## Configuration
 
@@ -95,19 +111,11 @@ Here is an example of how to authenticate a user using the `POST /v1/auth` endpo
 ### Example Request
 
 ```sh
-<<<<<<< Updated upstream
-curl -X POST "http://localhost:8080/v1/authenticate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "exampleUser",
-    "password": "examplePassword"
-=======
 curl -X POST "http://localhost:8080/v1/auth" \
   -H "Content-Type: application/json" \
   -d '{
     "username": "user1",
     "password": "password"
->>>>>>> Stashed changes
   }'
 ```
 
@@ -152,23 +160,14 @@ Authorization is done via a JWT token obtained from the authentication process. 
 
 Here is an example of how to authenticate a user using the `POST /v1/auth` endpoint:
 
-#### Request Payload
-
-```json
-{
-  "username": "exampleUser",
-  "password": "examplePassword"
-}
-```
-
 #### Example Request
 
 ```sh
 curl -X POST "http://localhost:8080/v1/authenticate" \
   -H "Content-Type: application/json" \
   -d '{
-    "username": "exampleUser",
-    "password": "examplePassword"
+    "username": "user1",
+    "password": "password"
   }'
 ```
 
@@ -229,8 +228,4 @@ curl -X GET "http://localhost:8080/v1/users?username=example"
 In the above example, replace `example` with the actual username you want to search for.
 ## License
 
-<<<<<<< Updated upstream
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-=======
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
->>>>>>> Stashed changes
