@@ -30,8 +30,8 @@ func TestMain(m *testing.M) {
 }
 
 func cleanup(db *gorm.DB) {
-	db.Exec("DELETE FROM user_profiles")
-	db.Exec("DELETE FROM users")
 	db.Exec("DELETE FROM service_versions")
 	db.Exec("DELETE FROM services")
+	db.Exec("DELETE FROM user_profiles")
+	db.Exec("DELETE FROM users")
 }

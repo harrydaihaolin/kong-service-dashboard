@@ -163,6 +163,111 @@ func GetServices(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// UpdateService updates an existing service in the database based on the provided JSON payload.
+func UpdateService(w http.ResponseWriter, r *http.Request) {
+	db := GetDBInstance()
+
+	var service Service
+	if err := json.NewDecoder(r.Body).Decode(&service); err != nil {
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	// Ensure ID is provided
+	if service.ID == 0 {
+		http.Error(w, "ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the service exists
+	var existingService Service
+	if db.First(&existingService, service.ID).Error != nil {
+		http.Error(w, "Service not found", http.StatusNotFound)
+		return
+	}
+
+	if err := db.Save(&service).Error; err != nil {
+		http.Error(w, "Failed to update service", http.StatusInternalServerError)
+		log.Printf("Error updating service: %v", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(service)
+}
+
+// CreateService creates a new service in the database based on the provided JSON payload.
+func CreateService(w http.ResponseWriter, r *http.Request) {
+	db := GetDBInstance()
+
+	var service Service
+	if err := json.NewDecoder(r.Body).Decode(&service); err != nil {
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the service already exists
+	var existingService Service
+	if db.Where("service_name = ?", service.ServiceName).First(&existingService).Error == nil {
+		http.Error(w, "Service already exists", http.StatusConflict)
+		return
+	}
+
+	if err := db.Create(&service).Error; err != nil {
+		http.Error(w, "Failed to create service", http.StatusInternalServerError)
+		log.Printf("Error creating service: %v", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(service)
+}
+
+func DeleteService(w http.ResponseWriter, r *http.Request) {
+	db := GetDBInstance()
+
+	// Parse query parameters
+	id := r.URL.Query().Get("id")
+	name := r.URL.Query().Get("name")
+
+	// Convert ID to integer if provided
+	var idInt int
+	var err error
+	if id != "" {
+		idInt, err = strconv.Atoi(id)
+		if handleDBQueryError(w, err, "Invalid ID parameter", http.StatusBadRequest) {
+			return
+		}
+	}
+
+	// Check if the service exists by ID or name
+	var service Service
+	if id != "" {
+		if db.First(&service, idInt).Error != nil {
+			http.Error(w, "Resource not found", http.StatusNotFound)
+			return
+		}
+	} else if name != "" {
+		if db.Where("service_name = ?", name).First(&service).Error != nil {
+			http.Error(w, "Resource not found", http.StatusNotFound)
+			return
+		}
+	} else {
+		http.Error(w, "ID or name parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	// Perform soft delete
+	if err := db.Delete(&service).Error; err != nil {
+		http.Error(w, "Failed to delete service", http.StatusInternalServerError)
+		log.Printf("Error deleting service: %v", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// GetUsers fetches user data from the database based on query parameters and responds with the results.
 func GetUsers(w http.ResponseWriter, r *http.Request) {
 	db := GetDBInstance()
 	var users []User
@@ -171,8 +276,14 @@ func GetUsers(w http.ResponseWriter, r *http.Request) {
 	// Get query parameters
 	queryParams := r.URL.Query()
 	username := queryParams.Get("username")
+	id := queryParams.Get("id")
 
 	// Fetch data based on query parameters
+	if id != "" {
+		// Get user by ID
+		fetchAndRespond(w, func() error { return db.First(&user, "id = ?", id).Error }, &user)
+		return
+	}
 	if username != "" {
 		// Get user by username
 		fetchAndRespond(w, func() error { return db.First(&user, "user_name = ?", username).Error }, &user)
@@ -180,4 +291,108 @@ func GetUsers(w http.ResponseWriter, r *http.Request) {
 		// Get all users
 		fetchAndRespond(w, func() error { return db.Find(&users).Error }, &users)
 	}
+}
+
+// UpdateUser updates an existing user in the database based on the provided JSON payload.
+func UpdateUser(w http.ResponseWriter, r *http.Request) {
+	db := GetDBInstance()
+
+	var user User
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	// Ensure ID is provided
+	if user.ID == 0 {
+		http.Error(w, "ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the user exists
+	var existingUser User
+	if db.First(&existingUser, user.ID).Error != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	if err := db.Save(&user).Error; err != nil {
+		http.Error(w, "Failed to update user", http.StatusInternalServerError)
+		log.Printf("Error updating user: %v", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(user)
+}
+
+// CreateUser creates a new user in the database based on the provided JSON payload.
+func CreateUser(w http.ResponseWriter, r *http.Request) {
+	db := GetDBInstance()
+
+	var user User
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the user already exists
+	var existingUser User
+	if db.Where("username = ?", user.Username).First(&existingUser).Error == nil {
+		http.Error(w, "User already exists", http.StatusConflict)
+		return
+	}
+
+	if err := db.Create(&user).Error; err != nil {
+		http.Error(w, "Failed to create user", http.StatusInternalServerError)
+		log.Printf("Error creating user: %v", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(user)
+}
+
+func DeleteUser(w http.ResponseWriter, r *http.Request) {
+	db := GetDBInstance()
+
+	// Parse query parameters
+	id := r.URL.Query().Get("id")
+	username := r.URL.Query().Get("username")
+
+	// Convert ID to integer if provided
+	var idInt int
+	var err error
+	if id != "" {
+		idInt, err = strconv.Atoi(id)
+		if handleDBQueryError(w, err, "Invalid ID parameter", http.StatusBadRequest) {
+			return
+		}
+	}
+
+	// Check if the user exists by ID or username
+	var user User
+	if id != "" {
+		if db.First(&user, idInt).Error != nil {
+			http.Error(w, "Resource not found", http.StatusNotFound)
+			return
+		}
+	} else if username != "" {
+		if db.Where("username = ?", username).First(&user).Error != nil {
+			http.Error(w, "Resource not found", http.StatusNotFound)
+			return
+		}
+	} else {
+		http.Error(w, "ID or username parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	// Perform soft delete
+	if err := db.Delete(&user).Error; err != nil {
+		http.Error(w, "Failed to delete user", http.StatusInternalServerError)
+		log.Printf("Error deleting user: %v", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
