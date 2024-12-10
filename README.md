@@ -95,11 +95,19 @@ Here is an example of how to authenticate a user using the `POST /v1/auth` endpo
 ### Example Request
 
 ```sh
+<<<<<<< Updated upstream
 curl -X POST "http://localhost:8080/v1/authenticate" \
   -H "Content-Type: application/json" \
   -d '{
     "username": "exampleUser",
     "password": "examplePassword"
+=======
+curl -X POST "http://localhost:8080/v1/auth" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "user1",
+    "password": "password"
+>>>>>>> Stashed changes
   }'
 ```
 
@@ -221,4 +229,8 @@ curl -X GET "http://localhost:8080/v1/users?username=example"
 In the above example, replace `example` with the actual username you want to search for.
 ## License
 
+<<<<<<< Updated upstream
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+=======
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+>>>>>>> Stashed changes
