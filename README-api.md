@@ -55,11 +55,30 @@ curl -X GET "http://localhost:8080/v1/services?page=1&limit=10&sort_by=id&order=
 
 This request will retrieve a paginated list of services, sorted by `id` in ascending order. You can adjust the query parameters to customize the pagination and sorting:
 
-- `page`: The page number to retrieve (default: `1`).
-- `limit`: The number of services per page (default: `10`).
-- `sort_by`: The field to sort by (default: `id`). Valid options are `id`, `service_name`, and `created_at`.
-- `order`: The sort order (default: `asc`). Valid options are `asc` and `desc`.
+### Query Parameters
 
+- `page`: The page number to retrieve (default: `1`).
+    - Example: `?page=2`
+- `limit`: The number of services per page (default: `10`).
+    - Example: `?limit=20`
+- `sort_by`: The field to sort by (default: `id`). Valid options are `id`, `service_name`, and `created_at`.
+    - Example: `?sort_by=service_name`
+- `order`: The sort order (default: `asc`). Valid options are `asc` and `desc`.
+    - Example: `?order=desc`
+- `search_mode`: A flag to indicate if search mode is enabled (default: `false`).
+    - Example: `?search_mode=true`
+- `name`: The name of the service to search for.
+    - Example: `?name=example-service`
+- `id`: The ID of the service to retrieve.
+    - Example: `?id=123`
+- `load_version`: A flag to indicate if service versions should be loaded (default: `false`).
+    - Example: `?load_version=true`
+
+The function handles the following scenarios:
+- Fetching a specific service by ID.
+- Searching for services by name.
+- Fetching a single service by name.
+- Fetching paginated and sorted results.
 You can also search for services by name or retrieve a specific service by ID:
 
 ```sh
@@ -73,6 +92,18 @@ curl -X GET "http://localhost:8080/v1/services?name=example" \
 
 # Retrieve a specific service by ID
 curl -X GET "http://localhost:8080/v1/services?id=1" \
+    -H "Authorization: Bearer <your_jwt_token>"
+
+# Retrieve services with pagination and sorting
+curl -X GET "http://localhost:8080/v1/services?page=2&limit=20&sort_by=service_name&order=desc" \
+    -H "Authorization: Bearer <your_jwt_token>"
+
+# Retrieve services with search mode enabled
+curl -X GET "http://localhost:8080/v1/services?search_mode=true&name=example-service" \
+    -H "Authorization: Bearer <your_jwt_token>"
+
+# Retrieve a specific service by ID and load versions
+curl -X GET "http://localhost:8080/v1/services?id=123&load_version=true" \
     -H "Authorization: Bearer <your_jwt_token>"
 ```
 
