@@ -48,8 +48,6 @@ func UserAuthentication(w http.ResponseWriter, r *http.Request) {
 	username := creds.Username
 	password := creds.Password
 
-	// Here you should validate the username and password with your user database
-	// For simplicity, let's assume any username and password combination is valid
 	if username == "" || password == "" {
 		http.Error(w, "Invalid username or password", http.StatusBadRequest)
 		return
