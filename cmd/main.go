@@ -23,11 +23,14 @@ func main() {
 	})
 	router.HandleFunc("/v1/services", GetServices).Methods("GET")
 	router.HandleFunc("/v1/users", GetUsers).Methods("GET")
+	router.HandleFunc("/v1/auth", UserAuthentication).Methods("POST")
 
-	// Wrap the mux with LoggerMiddleware
+	// Add logger middleware to the router
 	loggedMux := LoggerMiddleware(router)
+	// Add Role Based middleware to the router
+	roleBasedMux := RoleBasedMiddleware(loggedMux)
 
-	if err := http.ListenAndServe(":8080", loggedMux); err != nil {
+	if err := http.ListenAndServe(":8080", roleBasedMux); err != nil {
 		fmt.Println("Error starting server:", err)
 	}
 	log.Println("Starting server on :8080")

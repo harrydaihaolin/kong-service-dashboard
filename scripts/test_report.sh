@@ -18,7 +18,7 @@ mkdir -p $COVERAGE_DIR
 
 # Step 1: Run tests and generate coverage profile
 echo "Running tests and generating coverage profile..."
-go test ./cmd/... -coverprofile=$COVERAGE_PROFILE
+go test ./cmd/... -v -coverprofile=$COVERAGE_PROFILE
 
 # Step 2: Generate HTML coverage report
 echo "Generating HTML coverage report..."

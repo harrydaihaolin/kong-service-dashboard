@@ -118,6 +118,8 @@ func GenerateDummyData(db *gorm.DB) {
 		users := []User{
 			{
 				Username: "user1",
+				Password: "password",
+				Role:     "user",
 				UserProfile: UserProfile{
 					FirstName: "User",
 					LastName:  "One",
@@ -126,6 +128,8 @@ func GenerateDummyData(db *gorm.DB) {
 			},
 			{
 				Username: "user2",
+				Password: "password",
+				Role:     "admin",
 				UserProfile: UserProfile{
 					FirstName: "User",
 					LastName:  "Two",
@@ -144,5 +148,5 @@ func GenerateDummyData(db *gorm.DB) {
 		log.Printf("Inserted users: %+v", users)
 	}
 
-	return 
+	return
 }

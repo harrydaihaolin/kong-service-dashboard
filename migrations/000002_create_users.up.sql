@@ -1,30 +1,29 @@
--- Note: This was managed by GORM auto migration, but it is included here for reference.
--- Create users table if it does not exist
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS "users" (
     id SERIAL PRIMARY KEY,
     username VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
--- Create user_profiles table if it does not exist
-CREATE TABLE IF NOT EXISTS user_profiles (
+CREATE TABLE IF NOT EXISTS "user_profiles" (
     id SERIAL PRIMARY KEY,
     user_id INTEGER UNIQUE NOT NULL,
-    user_name VARCHAR(255) UNIQUE NOT NULL,
+    first_name VARCHAR(255) NOT NULL,
+    last_name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE,
     CONSTRAINT fk_user
         FOREIGN KEY(user_id) 
-        REFERENCES users(id)
+        REFERENCES "users"(id)
         ON UPDATE CASCADE
         ON DELETE CASCADE
 );
 
--- Validate if the tables are created correctly
 SELECT table_name
 FROM information_schema.tables
 WHERE table_schema = 'public'
